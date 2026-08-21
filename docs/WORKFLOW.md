@@ -147,6 +147,14 @@ train+test(1,825행) 재결합 후 `KFold(5, shuffle=True, random_state=42)`로 
 - `output/day6/final/INDEX.md`의 "관련 README" 장 번호를 새 구조에 맞게 갱신
 사용 키워드: 없음(문서 편집만)
 
+### 19. README.md를 다른 저장소(bike-sharing-demand-analysis) 형식으로 재구성 + GitHub 업로드
+- 사용자의 기존 GitHub 저장소(`koarara2428/bike-sharing-demand-analysis`)를 `gh api`로 조회해 형식을 참고: 상단 소개+목적 문단 → 목차 → 데이터셋(컬럼표) → 프로젝트 구조(트리) → 분석 워크플로우(단계별 설명+**figure 인라인 삽입**) → 모델 성능 비교표 → 핵심 인사이트 → 한계 및 유의사항 → 재현 방법(설치+실행순서+폰트 참고) → Claude Code 활용 방식 → 데이터 출처
+- 이 형식에 맞춰 `README.md` 전체 재작성(수치·사실관계는 이전 버전과 동일, Executive Summary는 별도 절 대신 도입부 문단에 통합). Figure 4개 인라인 삽입: `correlation_heatmap_final.png`, `binding_affinity_histogram.png`, `model_comparison.png`, `final_model_predicted_vs_residual.png`
+- `requirements.txt` 신규 생성(스크립트 실제 import 기준: pandas/numpy/matplotlib/seaborn/scikit-learn/xgboost/joblib)
+- `output/day6/final/INDEX.md`의 "관련 README" 열을 장 번호 대신 새 구조의 섹션명으로 갱신
+- **GitHub에 업로드**: `git init` → `.gitignore` 생성(캐시/OS 파일만 제외, 데이터·모델·그림 전부 포함, 총 5.4MB) → 커밋 → `gh repo create koarara2428/drug-binding-affinity-prediction --public --push`로 저장소 생성 및 최초 푸시(84개 파일). 이후 README 재구성은 아직 재푸시 전(사용자 확인 필요)
+사용 키워드: `gh api`, `gh repo create`, `git init/add/commit`, `<img>` 대신 마크다운 `![]()` 삽입
+
 ## 현재 상태 (최종)
 
 STAGE ①~⑤ + README Next steps 4가지 + 최종 모델 residual 재검증까지 완료. **최종 모델은 Ridge(9피처, StandardScaler) — CV R² 0.571±0.068**, `output/day6/models/final_model.pkl`. **단, 극단값(고결합력 후보) 과소예측 편향은 구조적으로 남아있어 스크리닝 목적에는 참고용 이상으로 쓰기 어렵다는 게 최종 결론.** 산출물: `data/processed/`(전처리본 + train/test), `output/day6/`(그림·모델·지표, `final/`에 핵심만 curation), 루트 `README.md`(Executive Summary + 1~9장, 최종 보고서 형태), `docs/WORKFLOW.md`(과정 로그, 이 파일).
