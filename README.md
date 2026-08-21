@@ -176,4 +176,4 @@ python scripts/16_final_model_residual_analysis.py
 
 ## 데이터 출처
 
-`data/raw/drug_discovery_virtual_screening.csv`는 이 분석 실습을 위해 제공된 가상 스크리닝(computational virtual screening) 시뮬레이션 데이터입니다. 실제 실험 측정값이 아니라 컴퓨터로 생성된 데이터이며, 외부 공개 데이터베이스 출처는 명시되어 있지 않습니다.
+[Drug Discovery Virtual Screening Dataset](https://www.kaggle.com/datasets/shahriarkabir/drug-discovery-virtual-screening-dataset) (Kaggle, Shahriar Kabir 게시) — 컴퓨터 기반 가상 스크리닝(computational virtual screening)으로 생성된 화합물-단백질 결합 데이터. 실제 실험 측정값이 아니라 시뮬레이션 데이터입니다.

@@ -155,6 +155,9 @@ train+test(1,825행) 재결합 후 `KFold(5, shuffle=True, random_state=42)`로 
 - **GitHub에 업로드**: `git init` → `.gitignore` 생성(캐시/OS 파일만 제외, 데이터·모델·그림 전부 포함, 총 5.4MB) → 커밋 → `gh repo create koarara2428/drug-binding-affinity-prediction --public --push`로 저장소 생성 및 최초 푸시(84개 파일). 이후 README 재구성은 아직 재푸시 전(사용자 확인 필요)
 사용 키워드: `gh api`, `gh repo create`, `git init/add/commit`, `<img>` 대신 마크다운 `![]()` 삽입
 
+### 20. README "데이터 출처" 정정
+사용자가 실제 출처를 알려줌: [Kaggle - Drug Discovery Virtual Screening Dataset](https://www.kaggle.com/datasets/shahriarkabir/drug-discovery-virtual-screening-dataset) (Shahriar Kabir 게시). "출처 불명"으로 적었던 문장을 실제 출처 링크로 교체.
+
 ## 현재 상태 (최종)
 
 STAGE ①~⑤ + README Next steps 4가지 + 최종 모델 residual 재검증까지 완료. **최종 모델은 Ridge(9피처, StandardScaler) — CV R² 0.571±0.068**, `output/day6/models/final_model.pkl`. **단, 극단값(고결합력 후보) 과소예측 편향은 구조적으로 남아있어 스크리닝 목적에는 참고용 이상으로 쓰기 어렵다는 게 최종 결론.** 산출물: `data/processed/`(전처리본 + train/test), `output/day6/`(그림·모델·지표, `final/`에 핵심만 curation), 루트 `README.md`(Executive Summary + 1~9장, 최종 보고서 형태), `docs/WORKFLOW.md`(과정 로그, 이 파일).
