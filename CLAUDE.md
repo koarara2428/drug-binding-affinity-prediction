@@ -33,17 +33,24 @@
 ```
 ./
 ├── CLAUDE.md              # 이 파일
+├── README.md              # 포트폴리오용 최종 보고서 (영문)
+├── requirements.txt
 ├── data/
 │   ├── raw/                # 원본, 수정 금지
-│   └── processed/          # 전처리 산출물
+│   └── processed/          # 전처리 산출물 + train/test 분할
 ├── docs/
 │   ├── reference/
 │   │   └── SOP.md               # 범용 분석 절차 (참고용, 이 프로젝트 전용 아님)
 │   ├── archive/
 │   │   └── CLAUDE_CODE_WORKFLOW.md  # 예전 다른 프로젝트(자전거 대여) 기록 — 이번 프로젝트와 무관
 │   ├── problem_definition.md    # 이 프로젝트의 목표·문제 정의
-│   └── WORKFLOW.md              # 이 프로젝트의 진행 기록(로그)
+│   ├── WORKFLOW.md              # 이 프로젝트의 진행 기록(로그) + Research Decision Log
+│   ├── CLAUDE_WORKFLOW.md       # Claude Code 활용 방식 정리 (영문, representative workflow)
+│   ├── biological_context.md    # 바이오 R&D 맥락 설명 (영문)
+│   └── next_experiment.md       # 제안된 후속 실험 (영문, 미실행)
 ├── output/
 │   └── day6/
+│       ├── figures/, models/    # 전체 산출물
+│       └── final/               # 핵심 결과만 curation + FINAL_RESULTS.md + INDEX.md
 └── scripts/
 ```

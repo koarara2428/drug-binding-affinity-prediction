@@ -4,6 +4,21 @@
 목표: `binding_affinity`(결합 친화도)를 `molecular_weight`, `logp`, `protein_pi` 등으로 예측하는 회귀분석. 성공 기준은 "실험 전 컴퓨터 스크리닝 목적의 초보 연구원에게 쓸모 있는 수준".
 진행 절차: `docs/reference/SOP.md`의 STAGE ①~⑤ 순서를 따른다.
 
+## Research Decision Log
+
+This table is the researcher-facing summary of this document: not "what code was written," but **what evidence was reviewed and what decision followed from it**. The detailed, chronological log (in Korean) below preserves the full session record.
+
+| Step | Question | Analysis | Finding | Decision |
+|---|---|---|---|---|
+| Data leakage detection | Does any column encode the target? | Compared `active` against `binding_affinity` by threshold | `active` is an exact binarization at 7.0 (active=0 max 6.996 / active=1 min 7.002) | Excluded `active` from all modeling |
+| Missing / invalid value handling | Are there missing or physically impossible values? | Per-column missing ratio, raw-string re-read for disguised missing tokens, range check on `polar_surface_area` | 174 rows (8.7%) had missing `logp`/`polar_surface_area`/`hydrophobicity`; one `polar_surface_area` value was negative (-24.65), which is physically impossible | Dropped affected rows (2,000 → 1,825); no disguised-missing or dtype issues found elsewhere |
+| Feature selection | Which features are usable without inflating multicollinearity? | Correlation matrix; flagged pairs with \|r\| ≥ 0.8 | `logp`↔`logp_pi_interaction` (0.81), `protein_length`↔`mw_ratio` (-0.82) | Baseline model kept only one feature per correlated pair (7 features total) |
+| Model comparison | Do more flexible models outperform the linear baseline? | Single 8:2 split: Linear Regression vs RandomForest vs XGBoost | RandomForest/XGBoost appeared better on the single split | Treated as provisional pending cross-validation |
+| Cross-validation | Is the single-split ranking real? | 5-fold CV, R² mean ± std per model, gap-vs-std decision rule | All three models statistically indistinguishable (gaps smaller than std) | Did not select a model on single-split performance alone |
+| Ridge feature reintroduction | Can the excluded correlated features be used safely? | Ridge (StandardScaler) with the excluded features reintroduced (9 features), re-validated via CV | CV R² rose from 0.4552±0.0577 (7-feature) to 0.5714±0.0681 (9-feature) — gap exceeds both models' std | Selected Ridge (9 features) as the final model |
+| Residual analysis | Is the improved R² evenly distributed across the target range? | Residual vs actual value, correlation and per-decile means, on both the baseline and final model | `corr(residual, actual)` = 0.77 (baseline) → 0.74 (final) — high-affinity compounds still underpredicted (+0.96 mean residual in top decile) | Documented as an unresolved, model-independent limitation |
+| Practical usage limitation | Is this model suitable for final candidate ranking? | Reviewed residual bias against the stated screening use case | The bias falls exactly where ranking-based candidate selection would need accuracy | Scoped the model as a preliminary filter, not a final ranking tool |
+
 ## 현재 상태
 
 - **완료**: STAGE ① 원본 탐색, STAGE ② 전처리(컬럼 제외 + 결측 삭제 + PSA 이상값 삭제) **최종 완료** — `data/processed/drug_discovery_virtual_screening_processed.csv`(1,825행 × 15컬럼). STAGE ③ 시각화(상관 히트맵/분포/산점도, 전체 feature 히스토그램·boxplot, 최종본 기준 상관분석) 완료. Train/test 분할 방식은 그룹(`protein_id`) 분할 대신 SOP 기본값(무작위 8:2, random_state=42)으로 진행하기로 결정
@@ -163,6 +178,16 @@ Residual analysis 결과(고결합력 극단값 과소예측)가 실무적으로
 
 ### 22. README에 "결론 — 이 분석의 의미" 섹션 추가
 목적/결론/한계를 다시 정리하고, 이 분석 과정 자체가 보여준 것(누수 발견, 교차검증으로 성급한 결론 뒤집기, 다중공선성 피처 복원, 개선 후 재검증)을 정리한 마무리 절 추가. 목차에도 반영. GitHub 커밋·푸시.
+
+### 23. Repository를 채용 담당자용 포트폴리오로 전면 개편 (영문)
+사용자의 상세 지침(24개 섹션)에 따라 진행. 신규 사실은 만들지 않고, 기존 실제 결과(위 항목들)만 재구성·번역해 인용.
+- `README.md` 영문 전면 재작성: 새 제목("AI-Assisted Drug Discovery Data Analysis with Claude Code"), Project Snapshot, What I Demonstrated, Key Results(Before→After), Analysis Workflow(스크립트 매핑), Key Findings(4개), Experiment Log(표), Model Comparison(표, CV 두 차례 실행 간 미세 오차 각주로 명시), Critical Limitation(그림 포함), Claude Code Workflow, Human vs AI, Biological Context, Reproducibility, Repository Structure, Next Experiment, Detailed Documentation 순서로 재구성
+- 신규 문서 3개 생성: `docs/CLAUDE_WORKFLOW.md`(대표 워크플로우, "실제 로그 아님" 명시), `docs/biological_context.md`(연구 맥락, wet-lab 미수행 명시), `docs/next_experiment.md`(제안뿐, 미실행 명시)
+- `output/day6/final/FINAL_RESULTS.md` 신규 생성(1페이지 요약)
+- `docs/WORKFLOW.md` 최상단에 영문 "Research Decision Log" 표 추가(기존 한글 상세 로그는 보존)
+- `CLAUDE.md`, `output/day6/final/INDEX.md`의 구조/앵커 참조를 새 README와 일치하도록 갱신
+- 검증: 전체 파일에서 핵심 수치(0.5714, 0.4552 등)와 라이브러리명 grep으로 교차 확인, 불일치·가상 라이브러리 없음 확인
+사용 키워드: 없음(문서 작성·검증만)
 
 ## 현재 상태 (최종)
 

@@ -1,172 +1,245 @@
-<!-- title: Drug-Protein Binding Affinity Prediction -->
-# 약물-단백질 결합 친화도 예측 (Drug-Protein Binding Affinity Prediction)
+<!-- title: AI-Assisted Drug Discovery Data Analysis with Claude Code -->
+# AI-Assisted Drug Discovery Data Analysis with Claude Code
 
-가상 스크리닝(virtual screening) 데이터(2,000개 화합물-단백질 조합)를 이용해 **데이터 확인 → 정제 → 탐색적 분석(EDA) → 베이스라인 모델링 → 모델 비교/개선 → Residual 분석 → 문서화**까지 회귀분석 워크플로우 전체를 수행한 프로젝트입니다.
+> Binding Affinity Prediction and Model Validation on a Virtual Screening Dataset
 
-목표는 화합물-단백질 결합 친화도(`binding_affinity`)를 분자/단백질 특성으로 예측해, 신약 후보를 실험 전 컴퓨터로 1차 스크리닝하는 데 참고할 모델을 만드는 것입니다. 최종 모델은 **Ridge 회귀(9피처, StandardScaler)** 이며, 교차검증 기준 **R² = 0.5714 ± 0.0681**을 기록했습니다. 다만 모델은 스크리닝에서 가장 중요한 "결합력이 특히 높은 후보"를 여전히 과소예측하는 한계를 갖고 있습니다 — 자세한 내용은 [모델 성능 비교](#모델-성능-비교), [한계 및 유의사항](#한계-및-유의사항) 참고.
+This repository demonstrates an end-to-end bio-data analysis workflow — data quality assessment, EDA, modeling, cross-validation, and residual analysis — performed using [Claude Code](https://claude.com/product/claude-code) as a coding and analysis tool, with every data-quality judgment, statistical decision, and interpretation directed and validated by the researcher. The goal is not "Claude Code built a model." It is: **Claude Code was used to execute a rigorous, iterative analysis, while the research questions, validity checks, and final judgment stayed with the researcher.**
 
-이 저장소는 결과 자체뿐 아니라, **[Claude Code](https://claude.com/product/claude-code)를 CLI 환경에서 활용해 이 워크플로우 전 과정을 수행한 방식**도 보여줍니다. 자세한 진행 기록은 [`docs/WORKFLOW.md`](docs/WORKFLOW.md)에 정리했습니다.
+## Table of Contents
 
-## 목차
+- [Project Snapshot](#project-snapshot)
+- [What I Demonstrated](#what-i-demonstrated)
+- [Key Results](#key-results)
+- [Analysis Workflow](#analysis-workflow)
+- [Key Findings](#key-findings)
+- [Experiment Log](#experiment-log)
+- [Model Comparison](#model-comparison)
+- [Critical Limitation](#critical-limitation)
+- [Claude Code Workflow](#claude-code-workflow)
+- [Human vs AI](#human-vs-ai)
+- [Biological Context](#biological-context)
+- [Reproducibility](#reproducibility)
+- [Repository Structure](#repository-structure)
+- [Next Experiment](#next-experiment)
+- [Detailed Documentation](#detailed-documentation)
 
-- [데이터셋](#데이터셋)
-- [프로젝트 구조](#프로젝트-구조)
-- [분석 워크플로우](#분석-워크플로우)
-- [모델 성능 비교](#모델-성능-비교)
-- [핵심 인사이트](#핵심-인사이트)
-- [한계 및 유의사항](#한계-및-유의사항)
-- [결론 — 이 분석의 의미](#결론--이-분석의-의미)
-- [재현 방법](#재현-방법)
-- [Claude Code 활용 방식](#claude-code-활용-방식)
-- [데이터 출처](#데이터-출처)
+## Project Snapshot
 
-## 데이터셋
+- **Dataset:** 2,000 compound-protein pairs (1,825 after quality filtering)
+- **Task:** Binding affinity regression
+- **Workflow:** Data QC → EDA → Modeling → Cross-validation → Residual analysis
+- **Best model:** Ridge Regression (9 features, `StandardScaler`)
+- **CV R²:** 0.5714 ± 0.0681 (baseline 7-feature Linear Regression: 0.4552 ± 0.0577)
+- **Key finding:** High-affinity compounds were systematically underpredicted, in both the baseline and the final model
+- **Main purpose:** Demonstrate an AI-assisted, researcher-validated end-to-end bio-data analysis workflow
 
-`data/raw/drug_discovery_virtual_screening.csv` — 가상 스크리닝(virtual screening) 시뮬레이션으로 생성된 화합물-단백질 결합 데이터. 2,000행 × 17열. 한 행은 화합물 하나와 단백질 하나의 조합입니다.
+## What I Demonstrated
 
-| 컬럼 | 설명 |
-|---|---|
-| compound_id | 화합물 식별자 |
-| protein_id | 단백질 식별자 (400개 그룹, 화합물이 그룹당 평균 5개씩 묶임) |
-| molecular_weight | 분자량 |
-| logp | 지용성 지표(옥탄올-물 분배계수) |
-| h_bond_donors | 수소결합 공여체 수 |
-| h_bond_acceptors | 수소결합 수용체 수 |
-| rotatable_bonds | 회전 가능한 결합 수 |
-| polar_surface_area | 극성 표면적 |
-| compound_clogp | 계산된 logP |
-| protein_length | 단백질 길이(아미노산 수) |
-| protein_pi | 단백질 등전점 |
-| hydrophobicity | 단백질 소수성 지표 |
-| binding_site_size | 결합 부위 크기 |
-| mw_ratio | 분자량/단백질 길이 비율 (파생) |
-| logp_pi_interaction | logp × protein_pi 상호작용 (파생) |
-| **binding_affinity** | **결합 친화도 — 예측 타깃** |
-| active | binding_affinity를 임곗값 7.0으로 이진화한 값. **target leakage라 분석에서 제외** |
+- **Claude Code–assisted, end-to-end data analysis** — every stage from raw-file inspection to the final residual check was executed through Claude Code, directed step by step rather than run as a single automated pipeline.
+- **Data quality assessment** — checked the raw file for duplicates, disguised missing values, and inconsistent types before any modeling (`scripts/01_eda_structure_overview.py`).
+- **Missing value / outlier handling** — identified 8.7% of rows with missing values and one physically impossible value (`polar_surface_area` = -24.65), and made an explicit keep/drop decision for each (`scripts/02_preprocessing.py`).
+- **Data leakage detection** — found that the `active` column is an exact binarization of the target and removed it before modeling — see [Critical Limitation](#critical-limitation) and [Key Findings](#key-findings).
+- **Exploratory data analysis** — ranked every feature's correlation with the target and flagged multicollinear pairs before selecting a feature set (`scripts/03`–`05`).
+- **Feature engineering** — tested an explicit `logp`×`protein_pi` interaction term, and evaluated Ridge regularization as a way to reintroduce correlated features that had been excluded from the interpretable baseline (`scripts/13`–`15`).
+- **Regression model comparison** — compared Linear Regression, RandomForest, and XGBoost under identical split conditions (`scripts/07`, `09`–`11`).
+- **Cross-validation** — re-tested single-split model rankings with 5-fold CV, which reversed an initial (incorrect) conclusion about which model was best (`scripts/12`, `14`).
+- **Residual analysis** — checked not just aggregate error but *where* the model was wrong, on both the baseline and the final model (`scripts/08`, `16`).
+- **Model limitation assessment** — scoped the final model's practical use based on the residual findings, rather than reporting R² alone.
+- **Reproducible workflow documentation** — every script is numbered in execution order, and every decision is logged in [`docs/WORKFLOW.md`](docs/WORKFLOW.md).
 
-## 프로젝트 구조
+## Key Results
 
-```
-21차시/
-├── data/
-│   ├── raw/                          # 원본 (수정 금지)
-│   └── processed/                    # 전처리본 + train/test 분할
-├── scripts/                          # 분석 스크립트 (01~16, 실행 순서는 재현 방법 참고)
-├── output/
-│   └── day6/
-│       ├── figures/                  # 차트 PNG
-│       ├── models/                   # 학습된 모델(.pkl) + 지표 CSV
-│       └── final/                    # 핵심 결과물만 모은 폴더 (INDEX.md 안내 포함)
-├── docs/
-│   ├── WORKFLOW.md                   # 진행 과정 기록 (시간순)
-│   ├── problem_definition.md         # 문제 정의
-│   └── reference/SOP.md              # 범용 분석 절차 (참고용)
-├── requirements.txt
-├── CLAUDE.md
-└── README.md
+```text
+Ridge Regression
+
+7 features
+CV R² ≈ 0.455
+
+        ↓ Feature re-evaluation
+
+9 features
+CV R² ≈ 0.571
 ```
 
-## 분석 워크플로우
+Two features (`logp_pi_interaction`, `mw_ratio`) were initially excluded from the baseline model based on multicollinearity concerns (correlation ≥ 0.8 with other features), to keep the first model's coefficients individually interpretable. Ridge regression — which regularizes coefficient magnitude rather than requiring manual exclusion — was then evaluated as an alternative. Reintroducing the two excluded features into a Ridge model raised cross-validated R² from 0.4552 ± 0.0577 to 0.5714 ± 0.0681, a gap larger than either model's fold-to-fold standard deviation.
 
-### 1. 데이터 확인 및 정제
+## Analysis Workflow
 
-결측치는 `logp`/`polar_surface_area`/`hydrophobicity`에 각 3.0%씩 있었으나 서로 거의 겹치지 않아 합집합 기준 174행(8.7%)에서 발생, 해당 행을 삭제했습니다. `polar_surface_area`에서 물리적으로 불가능한 음수값(-24.65) 1건을 추가로 발견해 결측 처리 후 삭제했습니다. 중복 행은 0건이었습니다.
+```text
+Raw Data (data/raw/)
+   ↓
+Data Quality Check              → scripts/01_eda_structure_overview.py
+   ↓
+Preprocessing                   → scripts/02_preprocessing.py
+   ↓
+EDA                             → scripts/03_eda_binding_affinity.py
+                                   scripts/04_eda_all_numeric_features.py
+                                   scripts/05_correlation_analysis.py
+   ↓
+Baseline Modeling               → scripts/06_train_test_split.py
+                                   scripts/07_linear_regression.py
+   ↓
+Model Comparison                → scripts/09_random_forest.py
+                                   scripts/10_xgboost.py
+                                   scripts/11_model_comparison.py
+   ↓
+Cross-Validation                → scripts/12_cross_validation.py
+   ↓
+Feature / Model Optimization    → scripts/13_next_steps.py
+                                   scripts/14_next_steps_cv_check.py
+                                   scripts/15_final_model.py
+   ↓
+Residual Analysis                → scripts/08_residual_analysis.py (baseline)
+                                    scripts/16_final_model_residual_analysis.py (final model)
+   ↓
+Practical Assessment            → this README (Critical Limitation), docs/next_experiment.md
+```
 
-가장 중요한 발견은 **`active` 컬럼이 `binding_affinity`를 임곗값 7.0으로 이진화한 완전한 파생값**이라는 것입니다(active=0 최댓값 6.996 / active=1 최솟값 7.002). 이를 피처로 쓰면 데이터 누수가 되므로 제외했습니다. 전처리 후 **2,000행 → 1,825행**, 15컬럼이 남았습니다.
+## Key Findings
 
-### 2. 탐색적 분석 & 시각화
+### 1. Data quality
 
-**상관관계 분석**
-`binding_affinity`와 상관이 뚜렷한 변수는 `logp_pi_interaction`(r=0.751), `logp`(r=0.607), `protein_pi`(r=0.295)뿐이었고, 나머지 9개 변수는 모두 \|r\|<0.06으로 사실상 무관했습니다. 애초 목표 변수였던 `molecular_weight`도 r=-0.015로 예상과 달리 영향이 없었습니다. `logp`↔`logp_pi_interaction`(r=0.81), `protein_length`↔`mw_ratio`(r=-0.82) 두 쌍은 다중공선성이 확인돼 베이스라인 모델에서는 각 쌍의 원본만 사용했습니다.
+Missing values in `logp`, `polar_surface_area`, and `hydrophobicity` (3.0% each) barely overlapped, so together they affected 174 rows (8.7%). A separate scan also found one physically impossible value — `polar_surface_area` = -24.65 (surface area cannot be negative). Both were resolved by dropping the affected rows (2,000 → 1,825). No duplicate rows or disguised-missing tokens were found.
 
-![전처리 최종본 상관관계 히트맵](output/day6/figures/correlation_heatmap_final.png)
+### 2. Data leakage
 
-**타깃 분포**
-`binding_affinity`는 평균 6.522, 표준편차 1.205의 오른쪽으로 치우친 분포(skew 0.678)이며, 최댓값은 15.040까지 뻗어 있습니다. 이 오른쪽 꼬리(고결합력 후보)를 모델이 얼마나 잘 맞히는지가 이후 분석의 핵심 쟁점이 됩니다.
+The `active` column turned out to be an exact binarization of the target: `active = 1` if and only if `binding_affinity > 7.0` (active=0 max was 6.996; active=1 min was 7.002 — no overlap). Using it as a feature would have let the model see the answer. It was excluded from all modeling.
 
-![binding_affinity 분포](output/day6/figures/binding_affinity_histogram.png)
+### 3. Model performance
 
-### 3. 모델링
+A single 8:2 split made RandomForest and XGBoost look better than Linear Regression. Five-fold cross-validation showed this was not a reliable difference — all three models' R² distributions overlapped once fold-to-fold variability was accounted for. The only change that produced a statistically meaningful improvement was reintroducing two multicollinear features into a Ridge model (see [Key Results](#key-results)).
 
-`binding_affinity`를 예측하는 회귀 모델을 선형회귀(베이스라인) → 랜덤포레스트 → XGBoost 순으로 구축하고, **5-fold 교차검증**으로 재검증했습니다. 모든 모델은 `random_state=42`로 통일했습니다.
+### 4. Model limitation
 
-단일 분할 비교에서는 RandomForest·XGBoost가 선형회귀보다 나아 보였지만, 교차검증 결과 **세 모델의 성능 차이는 통계적으로 유의미하지 않았습니다**(R² std 0.08~0.10 범위 내). 이에 따라 추가로 3가지를 실험했습니다: ① `logp`×`protein_pi` 상호작용항 추가(유의미한 개선 없음), ② `protein_id` 기준 그룹 분할로 재검증(무작위 분할과 성능 비슷 — 새로운 단백질에도 일반화됨을 확인), ③ Ridge 회귀로 다중공선성 때문에 제외했던 `logp_pi_interaction`/`mw_ratio`를 재포함(**R² 0.46 → 0.57로 뚜렷한 개선**). 최종적으로 **Ridge(9피처, StandardScaler)** 를 최종 모델로 선정하고 전체 데이터로 재학습했습니다.
+Residual analysis on the held-out test set showed `corr(residual, actual value)` = 0.77 for the baseline model and 0.74 for the final model — in both cases, the model underpredicts high-affinity compounds and overpredicts low-affinity ones. The Ridge model's overall R² improvement did not resolve this bias, which limits its practical use — see [Critical Limitation](#critical-limitation).
 
-![모델별 성능 비교](output/day6/figures/model_comparison.png)
+## Experiment Log
 
-### 4. Residual 분석 — 핵심 한계
+| Experiment | Approach | Result | Decision |
+|---|---|---|---|
+| Baseline | Linear Regression, 7 features | CV R² = 0.4552 ± 0.0577 | Baseline established |
+| Model comparison | RandomForest | CV R² = 0.4887 ± 0.0816 | Compared — no statistically meaningful gain over baseline |
+| Model comparison | XGBoost | CV R² = 0.4915 ± 0.0900 | Compared — no statistically meaningful gain over baseline or RandomForest |
+| Feature engineering | `logp`×`protein_pi` interaction term | CV R² = 0.4647 ± 0.0454 | What was learned: the interaction alone did not meaningfully improve fit — rejected for the final model |
+| Data split strategy | Group split by `protein_id` | Test R² = 0.4470, comparable to the random split | What was learned: no evidence that the random split's protein overlap inflated performance |
+| Regularization | Ridge, same 7 features | CV R² = 0.4552 ± 0.0577 (unchanged) | No effect at default `alpha=1.0` on this feature set |
+| Regularization + feature reintroduction | Ridge, 9 features (+`logp_pi_interaction`, +`mw_ratio`) | CV R² = 0.5714 ± 0.0681 | Selected as final model |
+| Residual analysis | Final model, held-out test set | High-affinity compounds still underpredicted (`corr(residual, actual)` = 0.7358) | What was learned: the R² gain did not fix this bias — usage scope limited accordingly |
 
-**모델은 결합력이 특히 높은 극단값을 체계적으로 과소예측합니다.** Baseline(corr(residual, 실제값)=0.773)과 최종 모델(corr=0.736) 모두에서 이 편향이 확인됐고, R²가 크게 개선된 뒤에도 거의 그대로 남았습니다. 최종 모델 기준 실제값 상위 10% 구간의 평균 residual은 +0.957로, 여전히 뚜렷한 과소예측입니다.
+This table reflects an **iterative research workflow**: each experiment's result determined the direction of the next one, rather than following a fixed plan set at the start.
 
-![최종 모델 예측값 vs Residual](output/day6/figures/final_model_predicted_vs_residual.png)
+## Model Comparison
 
-> ⚠️ 스크리닝의 목적이 "결합력 높은 후보를 놓치지 않는 것"임을 감안하면, 이 편향은 전체 R²보다 더 중요하게 다뤄야 할 한계입니다. RandomForest·XGBoost로 바꿔도 해결되지 않아, 현재 피처가 담고 있는 정보 자체의 한계로 보입니다.
-
-## 모델 성능 비교
-
-조건: `active`/`compound_id`/`protein_id` 제외, 5-fold 교차검증(`KFold(shuffle=True, random_state=42)`, 1,825행 전체) + 단일 분할(8:2, `random_state=42`) 병행 확인
-
-| 모델 | CV R² (mean±std) | test R² (단일분할) | test MAE | test RMSE |
+| Model | CV R² (mean ± std) | Test R² (single split) | Test MAE | Test RMSE |
 |---|---|---|---|---|
-| Linear Regression (baseline, 7피처) | 0.4554 ± 0.1036 | 0.4275 | 0.4714 | 0.9916 |
+| Linear Regression (baseline, 7 features) | 0.4554 ± 0.1036 | 0.4275 | 0.4714 | 0.9916 |
 | RandomForest | 0.4887 ± 0.0816 | 0.4768 | 0.4603 | 0.9479 |
 | XGBoost | 0.4915 ± 0.0900 | 0.4717 | 0.4724 | 0.9525 |
-| Ridge (7피처) | 0.4552 ± 0.0577 | 0.4274 | 0.4716 | 0.9916 |
-| **Ridge (9피처, 최종 모델)** | **0.5714 ± 0.0681** | 0.5533 | 0.3700 | 0.8759 |
+| Ridge (7 features) | 0.4552 ± 0.0577 | 0.4274 | 0.4716 | 0.9916 |
+| **Ridge (9 features, final model)** | **0.5714 ± 0.0681** | **0.5533** | **0.3700** | **0.8759** |
 
-전체 지표(CSV): [`output/day6/final/next_steps_cv_results.csv`](output/day6/final/next_steps_cv_results.csv), [`output/day6/final/cross_validation_results.csv`](output/day6/final/cross_validation_results.csv)
+*Note: the Linear Regression/RandomForest/XGBoost row is from one 5-fold CV pass (`scripts/12`); the Ridge experiment rows are from a second 5-fold CV pass on the same 1,825-row dataset with a different row ordering (`scripts/14`), which is why the baseline's CV mean appears twice with a small difference (0.4554 vs 0.4552) — both are valid estimates of the same model, not a computation error.*
 
-## 핵심 인사이트
+Full result files: [`output/day6/final/cross_validation_results.csv`](output/day6/final/cross_validation_results.csv), [`output/day6/final/next_steps_cv_results.csv`](output/day6/final/next_steps_cv_results.csv), [`output/day6/final/model_comparison.png`](output/day6/final/model_comparison.png)
 
-- `logp`가 사실상 유일하게 뚜렷한 단독 예측 신호이며, 애초 중요할 것으로 예상했던 `molecular_weight`는 타깃과 거의 무관했습니다.
-- 단일 분할 비교에서는 RandomForest·XGBoost가 선형회귀보다 나아 보였지만, 5-fold 교차검증으로 재검증하니 **세 모델 모두 통계적으로 동률**이었습니다 — 단일 분할 비교만으로 모델 순위를 단정하면 안 된다는 걸 직접 확인했습니다.
-- 다중공선성 때문에 제외했던 `logp_pi_interaction`/`mw_ratio`를 Ridge로 다시 포함시키자 성능이 크게 개선됐습니다(R² 0.46→0.57) — "계수를 해석하기 위한 모델"과 "예측 정확도를 높이기 위한 모델"은 피처 선택 기준이 다를 수 있음을 보여주는 사례입니다.
-- `protein_id` 기준 그룹 분할(완전히 새로운 단백질로 테스트)로도 성능이 유지돼, 모델이 새로운 화합물뿐 아니라 새로운 단백질에도 비슷한 수준으로 일반화됨을 확인했습니다.
-- 그러나 최종 모델도 고결합력 극단값에 대한 회귀-평균 편향(corr(residual, 실제값)=0.736)은 거의 해소하지 못했습니다 — 전체 설명력 개선과 이 문제의 해결은 별개였습니다.
+![Model comparison chart](output/day6/figures/model_comparison.png)
 
-## 한계 및 유의사항
+## Critical Limitation
 
-- 최종 모델도 `binding_affinity` 변동의 약 43%를 설명하지 못합니다.
-- 스크리닝에서 가장 중요한 고결합력 구간에서 가장 부정확합니다 — 유망 후보를 놓칠 위험이 있습니다.
-- 교차검증에서 fold 간 R² 변동폭이 큽니다(baseline 기준 0.35~0.65) — 데이터 규모상 단일 분할 비교의 신뢰도는 낮습니다.
-- Ridge의 `alpha`는 튜닝하지 않고 기본값(1.0)을 사용했습니다.
-- `hydrophobicity` 상위 구간에서 오차가 커지는 패턴의 원인은 특정하지 못했습니다.
-- 모든 검증은 이 데이터셋 내부 분할 기준이며, 외부 데이터로는 검증하지 않았습니다.
+![Final model: predicted vs residual, held-out test set](output/day6/figures/final_model_predicted_vs_residual.png)
 
-### 실전 활용 가능 여부
+The plot above (final model, held-out test set) is the clearest evidence of the main limitation: most points cluster tightly around zero residual, but a distinct set of large errors remains — these correspond to compounds whose actual affinity was far higher or far lower than the model predicted, which is exactly the pattern behind the `corr(residual, actual)` = 0.74 reported in [Key Findings](#key-findings).
 
-이 모델을 "예측 점수로 순위를 매겨 상위 후보만 골라 실험한다"는 방식으로 쓰면, 위 편향 때문에 진짜로 유망한 후보가 순위권 밖으로 밀려날 위험이 있습니다. 즉 **"결합력이 뛰어난 진짜 좋은 후보를 찾아내는" 최종 선별 도구로는 현재 상태로 적합하지 않습니다.**
+- **The dataset is simulated, not experimental.** `data/raw/drug_discovery_virtual_screening.csv` is a virtual-screening dataset (see [Data Source](#detailed-documentation)) — computationally generated, not measured in a lab.
+- **No external validation.** All reported metrics come from splits of this single dataset (random and group-based); the model has not been evaluated on any independent dataset.
+- **The feature set is limited to basic molecular/protein descriptors** (molecular weight, logP, protein length, isoelectric point, etc.) — no structural or docking-derived features were used.
+- **High-affinity compounds are systematically underpredicted** (`corr(residual, actual)` ≈ 0.74–0.77 across all model variants tested). This is the same failure mode observed in every model in this project, including the final one.
 
-다만 용도를 좁히면 활용 가치는 있습니다.
+**As a result, this model is not appropriate for final drug candidate ranking or any real drug-development decision.** The model is better positioned as a preliminary filtering tool — for deprioritizing candidates it confidently predicts as weak binders — rather than a final candidate-ranking model. See [`docs/biological_context.md`](docs/biological_context.md) for how this fits into a real screening workflow, and [`docs/next_experiment.md`](docs/next_experiment.md) for what would need to change before the high-affinity bias could be addressed.
 
-- 중간~낮은 구간(전체의 80%)에서는 편향이 거의 없어(평균 residual +0.013), **"예측이 낮으면 실제로도 낮을 가능성이 크다"**는 판단은 비교적 신뢰할 수 있습니다.
-- 따라서 **명백히 가망 없는 후보를 대량으로 걸러내는 1차 필터**로는 쓸 수 있지만, 최종 후보 선정은 이 모델의 예측값에만 의존해서는 안 됩니다.
-- 이 편향을 직접 겨냥한 개선(비대칭 손실 함수, 분위수 회귀, 극단값 오버샘플링)을 적용하지 않는 한, 최종 선별 용도로의 사용은 권장하지 않습니다.
+## Claude Code Workflow
 
-## 결론 — 이 분석의 의미
+```text
+Research Question
+      ↓
+Prompt / Instruction
+      ↓
+Claude Code
+      ↓
+Code Generation / Analysis
+      ↓
+Result Inspection
+      ↓
+Researcher Validation
+      ↓
+Next Analysis Decision
+```
 
-**목적**: "화합물이 단백질에 얼마나 잘 붙는지를 몇 가지 특성만으로 예측할 수 있는가"라는 질문에서 출발했습니다. 완벽한 모델이 아니라, 신약 후보를 실험 전 컴퓨터로 1차 걸러낼 때 참고할 수 있는 실용적인 도구를 만드는 것이 목표였습니다.
+Each stage of this project followed this loop: a specific question was posed, Claude Code generated the code and ran the analysis, and the researcher inspected the actual output (numbers, tables, plots) before deciding whether to accept the result and move on, or change direction. The cross-validation step in this project is a direct example: single-split results were not accepted at face value — they were re-tested, which changed the conclusion.
 
-**결론**: 가능은 했지만 부분적으로만 가능했습니다. 최종 모델(R²=0.5714)은 아무 정보 없이 평균만 찍는 것보다는 확실히 낫지만, 완성된 도구라고 하기엔 부족합니다. 이번 분석의 핵심 성과는 성능 수치 자체보다, **모델이 결합력이 가장 높은 후보를 체계적으로 과소평가한다**는 사실을 밝혀낸 것입니다 — R² 하나만 봐서는 알 수 없었던 사실이며, 이 덕분에 "최종 후보 선별에는 부적합하지만 1차 필터로는 활용 가능"이라는 애매하지 않은 실전 활용 범위를 그을 수 있었습니다.
+A step-by-step account of this loop for each analysis stage is in [`docs/CLAUDE_WORKFLOW.md`](docs/CLAUDE_WORKFLOW.md).
 
-**한계**: 최종 모델도 여전히 `binding_affinity` 변동의 절반 가까이를 설명하지 못합니다. 가장 중요한 구간(고결합력 후보)에서 가장 부정확한 편향은 모델을 바꿔도 거의 그대로 남아, 알고리즘보다는 **현재 보유한 특성 자체가 담고 있는 정보의 한계**로 보입니다. 검증도 이 데이터셋 내부로 한정되며 외부 데이터로는 확인하지 못했습니다.
+## Human vs AI
 
-**이 과정이 보여준 것**: 결과 수치 못지않게, 분석 과정에서의 판단들이 의미 있었습니다.
+### Claude Code was used for
 
-1. 정답을 미리 알려주는 컬럼(`active`)을 발견해 제거함으로써, "완벽한 모델을 만들었다"는 착각을 사전에 차단했습니다.
-2. 단일 분할 비교에서 RandomForest·XGBoost가 나아 보였지만, 5-fold 교차검증으로 재검증해 실제로는 세 모델의 실력 차이가 없다는 걸 확인했습니다 — 성급한 결론을 뒤집은 사례입니다.
-3. 다중공선성 때문에 제외했던 특성을 Ridge로 되살려, 실제로 성능을 크게 끌어올렸습니다(R² 0.46→0.57).
-4. 성능이 개선된 뒤에도 핵심 문제(극단값 편향)가 진짜 해결됐는지 다시 검증했고, 해결되지 않았다는 사실을 정직하게 기록했습니다.
+- Python code generation
+- Data inspection
+- Visualization
+- Model implementation
+- Repetitive analysis (re-running checks across models/feature sets)
+- Documentation support
 
-이번 분석은 "완성된 예측 모델"을 만든 것이 아니라, **이 데이터로 무엇을 할 수 있고 무엇은 아직 할 수 없는지를 정확히 그어낸 작업**입니다. 그 경계를 명확히 아는 것이, 실제 연구 현장에서는 성능 숫자 하나보다 더 중요한 결과물입니다.
+### Researcher decisions included
 
-## 재현 방법
+- Problem definition and success criteria
+- Data quality criteria (what counts as missing, invalid, or duplicate)
+- Data leakage assessment
+- Preprocessing strategy (drop vs. impute, and at what threshold)
+- Feature selection strategy (which multicollinear feature to keep, when to reintroduce both via regularization)
+- Model comparison strategy (not trusting a single split; requiring cross-validation)
+- Validation strategy (random vs. group split, and why both were checked)
+- Biological interpretation (what the residual bias means for a screening use case)
+- Final model selection
+- Practical applicability assessment (preliminary filter vs. final ranking tool)
+
+## Biological Context
+
+Binding affinity prediction is used early in drug discovery to prioritize which computationally screened compounds are worth carrying into experimental testing — it is a filtering step, not a replacement for wet-lab validation. This project is a computational exercise only; no experimental work was performed here. See [`docs/biological_context.md`](docs/biological_context.md) for the full discussion, including how this model's limitations affect where it could realistically be used in that workflow.
+
+## Reproducibility
+
+### Environment
 
 ```bash
 pip install -r requirements.txt
 ```
 
-스크립트는 프로젝트 루트에서 실행합니다(내부적으로 스크립트 위치 기준 상대 경로로 `data/`, `output/`을 참조). 스크립트 번호 순서(01~16)가 곧 의존관계 순서이므로, 아래처럼 순서대로 실행하면 됩니다.
+### Tools & Methods
+
+**AI-assisted development**
+- Claude Code
+
+**Programming**
+- Python
+
+**Data Analysis**
+- pandas
+- NumPy
+- matplotlib / seaborn
+
+**Machine Learning**
+- scikit-learn (Linear Regression, Ridge, RandomForest)
+- XGBoost
+
+**Validation**
+- Train/test split (8:2, `random_state=42`)
+- 5-fold cross-validation
+- Residual analysis
+
+### Execution order
+
+Scripts are run from the repository root; script numbering (`01`–`16`) reflects the actual dependency order.
 
 ```bash
 python scripts/01_eda_structure_overview.py
@@ -187,21 +260,61 @@ python scripts/15_final_model.py
 python scripts/16_final_model_residual_analysis.py
 ```
 
-모든 모델이 `random_state=42`로 고정되어 있어, 위 순서대로 실행하면 `output/day6/`의 모든 결과(수치·차트)가 동일하게 재현됩니다.
+All models use `random_state=42`, so running the scripts in order reproduces every result in `output/day6/`.
 
-> **폰트 참고**: 차트의 한글 표시에 Windows 기본 폰트인 `Malgun Gothic`을 사용합니다. macOS/Linux 등 다른 환경에서는 각 스크립트의 `plt.rcParams["font.family"]` 값을 시스템에 설치된 한글 폰트(예: `AppleGothic`, `NanumGothic`)로 바꿔야 한글이 정상적으로 표시됩니다.
+> **Font note**: charts use `Malgun Gothic` (Windows) for Korean text in a small number of plot labels. On macOS/Linux, change `plt.rcParams["font.family"]` in each script to an available Korean font (e.g., `AppleGothic`, `NanumGothic`) if those labels need to render correctly.
 
-## Claude Code 활용 방식
+### Raw / Processed data
 
-이 프로젝트의 데이터 확인, 정제 방침 결정, EDA, 모델링, 검증, 결과 해석, 문서화는 모두 **Claude Code CLI 환경에서 자연어 대화로 지시하며** 진행했습니다. 예를 들어:
+- `data/raw/` — original file, never modified.
+- `data/processed/` — the cleaned dataset (`drug_discovery_virtual_screening_processed.csv`, 1,825 × 15) and the 8:2 train/test split (`split/train.csv`, `split/test.csv`) used for all single-split evaluations.
 
-- 데이터를 먼저 "회귀분석이 가능한 데이터인지" 읽기 전용으로 판정한 뒤에 전처리를 진행하도록 순서를 지정했습니다.
-- 컬럼 삭제·값 변경은 매번 방법(안)을 먼저 제시받고 확인한 뒤에만 실행하도록 진행했습니다.
-- 단일 분할에서 RandomForest·XGBoost가 나아 보였을 때, 교차검증으로 재검증해달라는 요청에 따라 실제로는 세 모델이 통계적으로 동률임을 확인했습니다.
-- 다중공선성 때문에 제외했던 피처를 Ridge로 되살려보자는 지시에 따라 성능을 0.46→0.57로 크게 개선했습니다.
-- 최종 모델도 별도로 residual analysis를 다시 요청해, R² 개선과 별개로 핵심 한계(극단값 편향)가 남아있음을 직접 검증했습니다.
-- 매 작업 단계를 [`docs/WORKFLOW.md`](docs/WORKFLOW.md)에 누적 기록하며 진행 상황과 판단 근거를 추적했습니다.
+### Output
 
-## 데이터 출처
+- `output/day6/figures/` — all generated charts.
+- `output/day6/models/` — every trained model (`.pkl`) and metrics file produced during the project.
+- `output/day6/final/` — a curated subset of the above (final model, key comparison tables, key figures) plus [`FINAL_RESULTS.md`](output/day6/final/FINAL_RESULTS.md), a one-page results summary, and [`INDEX.md`](output/day6/final/INDEX.md), a guide to what each file is.
 
-[Drug Discovery Virtual Screening Dataset](https://www.kaggle.com/datasets/shahriarkabir/drug-discovery-virtual-screening-dataset) (Kaggle, Shahriar Kabir 게시) — 컴퓨터 기반 가상 스크리닝(computational virtual screening)으로 생성된 화합물-단백질 결합 데이터. 실제 실험 측정값이 아니라 시뮬레이션 데이터입니다.
+## Repository Structure
+
+```
+.
+├── README.md
+├── CLAUDE.md
+├── requirements.txt
+├── data/
+│   ├── raw/                          # Original file (never modified)
+│   └── processed/                    # Cleaned dataset + train/test split
+├── scripts/                          # Analysis scripts, 01-16 (execution order = dependency order)
+├── output/
+│   └── day6/
+│       ├── figures/                  # All generated charts
+│       ├── models/                   # Trained models (.pkl) + metrics
+│       └── final/                    # Curated key results + FINAL_RESULTS.md + INDEX.md
+└── docs/
+    ├── WORKFLOW.md                   # Research decision log (chronological)
+    ├── CLAUDE_WORKFLOW.md            # Representative Claude Code usage workflow
+    ├── biological_context.md         # Where this fits in a real screening workflow
+    ├── next_experiment.md            # Proposed (not yet run) follow-up experiments
+    ├── problem_definition.md         # Original problem statement
+    ├── reference/SOP.md              # General-purpose analysis procedure (reference)
+    └── archive/                      # Unrelated prior project (archived, not part of this analysis)
+```
+
+## Next Experiment
+
+The high-affinity underprediction bias identified in [Critical Limitation](#critical-limitation) is the main open problem. Proposed (not yet run) follow-ups include weighted/quantile regression aimed directly at that bias, XGBoost hyperparameter tuning, richer structural features, and external validation. Full details, including which metrics would actually measure improvement (Spearman correlation, Top-K recall), are in [`docs/next_experiment.md`](docs/next_experiment.md).
+
+## Detailed Documentation
+
+| Document | Contents |
+|---|---|
+| [`docs/WORKFLOW.md`](docs/WORKFLOW.md) | Full chronological research decision log |
+| [`docs/CLAUDE_WORKFLOW.md`](docs/CLAUDE_WORKFLOW.md) | Representative Claude Code usage workflow, step by step |
+| [`docs/biological_context.md`](docs/biological_context.md) | Why this problem matters, and where computational screening fits in a real workflow |
+| [`docs/next_experiment.md`](docs/next_experiment.md) | Proposed follow-up experiments (not yet run) |
+| [`docs/problem_definition.md`](docs/problem_definition.md) | Original problem statement |
+| [`output/day6/final/FINAL_RESULTS.md`](output/day6/final/FINAL_RESULTS.md) | One-page results summary |
+| [`output/day6/final/INDEX.md`](output/day6/final/INDEX.md) | Guide to the curated result files |
+
+**Data source**: [Drug Discovery Virtual Screening Dataset](https://www.kaggle.com/datasets/shahriarkabir/drug-discovery-virtual-screening-dataset) (Kaggle, published by Shahriar Kabir) — a computationally generated virtual-screening dataset, not experimentally measured affinities.
