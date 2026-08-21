@@ -1,73 +1,73 @@
 # Claude Code Workflow
 
-> **Representative workflow.** This document summarizes how Claude Code was used across this project, based on the actual sequence of analysis steps and decisions recorded in [`WORKFLOW.md`](WORKFLOW.md). It is not a verbatim chat log — no such log file exists in this repository — but a structured reconstruction of the real prompt → code → validation → decision cycle that was followed at each stage.
+> **대표 워크플로우(Representative workflow).** 이 문서는 [`WORKFLOW.md`](WORKFLOW.md)에 기록된 실제 분석 단계와 의사결정을 바탕으로, 프로젝트 전반에서 Claude Code를 어떻게 활용했는지 정리한 것입니다. 글자 그대로의 대화 로그가 아닙니다 — 이 저장소에는 그런 로그 파일이 존재하지 않습니다 — 대신 각 단계에서 실제로 있었던 "prompt → 코드 생성 → 검증 → 결정"의 순환 구조를 재구성한 것입니다.
 
 ## Objective
 
-Show how Claude Code was used as a tool inside a researcher-directed analysis: Claude Code generated code and surfaced results; the researcher set the problem, judged data quality, evaluated statistical evidence, and decided what to do next.
+Claude Code가 연구자의 지시 아래에서 하나의 도구로 어떻게 쓰였는지 보여준다: Claude Code는 코드를 생성하고 결과를 보여줬고, 연구자는 문제를 설정하고, 데이터 품질을 판단하고, 통계적 근거를 평가하고, 다음 단계를 결정했다.
 
 ## 1. Problem Definition
 
-- **Instruction**: Define what the dataset supports (a regression problem), confirm the target (`binding_affinity`) and a plausible feature set, and state a concrete success criterion (a model usable as a pre-experiment screening aid).
-- **Claude Code action**: Ran a structured feasibility check (row/column count, candidate continuous targets, missing-value ratios, target-leakage screen) before any modeling.
-- **Researcher validation**: Confirmed the problem was well-posed for regression and that the stated goal (screening aid, not a production tool) was realistic for the dataset size and feature quality.
-- **Decision**: Proceed with `binding_affinity` as the target; document the goal in `docs/problem_definition.md`.
+- **지시**: 이 데이터가 어떤 문제(회귀)를 지원하는지 확인하고, 타깃(`binding_affinity`)과 그럴듯한 피처 후보를 정하고, 구체적인 성공 기준(실험 전 스크리닝 보조 도구)을 세운다.
+- **Claude Code의 작업**: 모델링에 들어가기 전, 행/열 수, 연속형 타깃 후보, 결측 비율, target leakage 여부를 점검하는 구조화된 가능 여부 판정을 수행.
+- **연구자 검증**: 이 문제가 회귀분석으로 다루기에 적절하다는 것과, 데이터 규모·품질을 고려했을 때 목표(스크리닝 보조 도구, 완성형 제품 아님)가 현실적이라는 걸 확인.
+- **결정**: `binding_affinity`를 타깃으로 진행. 목표는 `docs/problem_definition.md`에 문서화.
 
 ## 2. Data Inspection
 
-- **Instruction**: Inspect the raw file's structure, dtypes, and value ranges before touching anything.
-- **Claude Code action**: Produced `shape`, `dtypes`, `nunique`, missing-value ratios, and a raw-string re-read to check for disguised missing tokens (`"?"`, `"N/A"`, blanks) and numbers stored as text (commas, units).
-- **Researcher validation**: Reviewed the printed diagnostics directly; confirmed no disguised missing values or type issues existed, so no extra cleanup step was needed for those two categories.
-- **Decision**: Move to a formal data-quality assessment rather than assuming the raw file was clean.
+- **지시**: 아무것도 건드리기 전에 원본 파일의 구조, dtype, 값 범위부터 확인한다.
+- **Claude Code의 작업**: `shape`, `dtypes`, `nunique`, 결측 비율을 계산하고, 위장된 결측 문자열(`"?"`, `"N/A"`, 빈칸)이나 문자로 저장된 숫자(쉼표, 단위)를 확인하기 위해 원본을 문자열로 다시 읽음.
+- **연구자 검증**: 출력된 진단 결과를 직접 확인. 위장된 결측값이나 타입 문제가 없다는 걸 확인해 해당 두 항목에 대해서는 추가 정리가 필요 없다고 판단.
+- **결정**: 원본 파일이 깨끗하다고 가정하지 않고, 정식 데이터 품질 검토 단계로 넘어감.
 
 ## 3. Data Quality Assessment
 
-- **Instruction**: Check for duplicates, invalid values, and any column that might leak the target.
-- **Claude Code action**: Checked full-row duplicates (0 found), scanned numeric columns for implausible values, and computed the relationship between `active` and `binding_affinity`.
-- **Researcher validation**: Identified that `active` is an exact binarization of `binding_affinity` at a threshold of 7.0 (active=0 max 6.996, active=1 min 7.002) — a textbook case of target leakage — and that one `polar_surface_area` value (-24.65) was physically impossible (surface area cannot be negative).
-- **Decision**: Drop `active` and `compound_id` (pure identifier) as features; reclassify the invalid `polar_surface_area` value as missing; drop rows with missing values in `logp`, `polar_surface_area`, or `hydrophobicity` (174 rows) plus the one invalid-value row. Dataset reduced from 2,000 to 1,825 rows, 15 columns.
+- **지시**: 중복, 무효한 값, 타깃을 누수시킬 수 있는 컬럼이 있는지 확인한다.
+- **Claude Code의 작업**: 전체 행 기준 중복(0건)을 확인하고, 수치형 컬럼에서 말이 안 되는 값을 스캔하고, `active`와 `binding_affinity`의 관계를 계산.
+- **연구자 검증**: `active`가 `binding_affinity`를 임곗값 7.0에서 정확히 이진화한 값(active=0 최댓값 6.996, active=1 최솟값 7.002)임을 확인 — 전형적인 target leakage 사례. `polar_surface_area` 값 하나(-24.65)도 물리적으로 불가능(표면적은 음수 불가)함을 확인.
+- **결정**: `active`(누수)와 `compound_id`(순수 식별자)를 피처에서 제외. 무효한 `polar_surface_area` 값은 결측으로 재분류. `logp`/`polar_surface_area`/`hydrophobicity`에 결측이 있는 행(174행)과 무효값 행을 삭제. 데이터가 2,000행에서 1,825행, 15컬럼으로 줄어듦.
 
 ## 4. Exploratory Data Analysis
 
-- **Instruction**: Characterize the target distribution and each feature's relationship to it before choosing features.
-- **Claude Code action**: Computed target summary statistics, a full correlation matrix, per-feature distribution plots, and an outlier scan (IQR-based).
-- **Researcher validation**: Read the correlation ranking directly — only `logp`, `protein_pi`, and (via a derived column) `logp_pi_interaction` showed meaningful correlation with the target; the originally expected driver, `molecular_weight`, did not. Flagged two multicollinear pairs (`logp`↔`logp_pi_interaction`, `protein_length`↔`mw_ratio`) for the feature-selection stage.
-- **Decision**: Select a 7-feature baseline set excluding one member of each multicollinear pair, to keep the first model's coefficients interpretable.
+- **지시**: 피처를 선정하기 전에 타깃 분포와 각 피처의 관계를 먼저 파악한다.
+- **Claude Code의 작업**: 타깃 요약 통계, 전체 상관행렬, 피처별 분포 그래프, IQR 기준 이상값 스캔을 계산.
+- **연구자 검증**: 상관관계 순위를 직접 확인 — `logp`, `protein_pi`, (파생 컬럼인) `logp_pi_interaction`만 타깃과 의미 있는 상관을 보였고, 원래 중요할 거라 예상했던 `molecular_weight`는 그렇지 않았음. 다중공선성 쌍 2개(`logp`↔`logp_pi_interaction`, `protein_length`↔`mw_ratio`)를 피처 선정 단계로 넘김.
+- **결정**: 다중공선성 쌍마다 하나씩만 남겨, 첫 모델의 계수를 해석 가능하게 유지하는 7개 피처의 baseline 세트를 선정.
 
 ## 5. Modeling
 
-- **Instruction**: Start with an interpretable baseline, then compare against more flexible models under identical train/test conditions.
-- **Claude Code action**: Trained Linear Regression, RandomForest, and XGBoost on the same 8:2 split (`random_state=42`) and reported R²/MAE/RMSE for each.
-- **Researcher validation**: On the single split, RandomForest and XGBoost appeared to outperform Linear Regression — but this observation was treated as provisional, not conclusive.
-- **Decision**: Do not select a "best" model from a single split; proceed to formal validation before drawing conclusions.
+- **지시**: 해석 가능한 baseline부터 시작하고, 동일한 조건에서 더 유연한 모델들과 비교한다.
+- **Claude Code의 작업**: 동일한 8:2 분할(`random_state=42`)로 Linear Regression, RandomForest, XGBoost를 학습시키고 각각의 R²/MAE/RMSE를 보고.
+- **연구자 검증**: 단일 분할에서는 RandomForest와 XGBoost가 Linear Regression보다 나아 보였지만, 이 관찰은 확정적이지 않은 잠정 결과로 취급.
+- **결정**: 단일 분할만으로 "최고 모델"을 정하지 않고, 결론을 내리기 전에 정식 검증 단계로 넘어감.
 
 ## 6. Model Validation
 
-- **Instruction**: Re-test the single-split ranking with 5-fold cross-validation before trusting it.
-- **Claude Code action**: Ran `KFold(5, shuffle=True, random_state=42)` cross-validation on all three models and reported R² mean ± std per model.
-- **Researcher validation**: Applied a simple decision rule (a performance gap smaller than the larger model's standard deviation is not meaningful) and found **all three models were statistically indistinguishable** — the single-split "advantage" for RandomForest/XGBoost fell inside normal fold-to-fold variability.
-- **Decision**: Since raw model choice did not move performance, investigate feature representation instead — specifically, whether Ridge regularization could safely reintroduce the two features dropped for multicollinearity.
+- **지시**: 단일 분할 순위를 신뢰하기 전에 5-fold 교차검증으로 재검증한다.
+- **Claude Code의 작업**: 세 모델 모두에 `KFold(5, shuffle=True, random_state=42)` 교차검증을 실행하고 모델별 R² mean ± std를 보고.
+- **연구자 검증**: 간단한 판정 규칙(성능 차이가 더 큰 쪽 모델의 표준편차보다 작으면 의미 없음)을 적용한 결과, **세 모델 모두 통계적으로 구분되지 않는다**는 걸 확인 — 단일 분할에서 보였던 RandomForest/XGBoost의 "우위"는 정상적인 fold 간 변동성 범위 안에 있었음.
+- **결정**: 모델 자체를 바꾸는 것으로는 성능이 안 움직였으니, 대신 피처 구성을 조사 — 구체적으로는 다중공선성 때문에 뺐던 두 피처를 Ridge 정규화로 안전하게 되살릴 수 있는지 확인.
 
 ## 7. Residual Analysis
 
-- **Instruction**: Do not stop at an aggregate R²; check where the model is wrong, not just how wrong on average.
-- **Claude Code action**: Computed residuals on the held-out test set, plotted their distribution and their relationship to predicted values, listed the 10 largest-error rows, and correlated residuals against the actual target.
-- **Researcher validation**: All 10 largest errors occurred at the extremes of the target range (very high or very low actual affinity); `corr(residual, actual)` was 0.77 for the baseline model — a strong regression-to-the-mean bias. After the Ridge (9-feature) model raised overall R², the same check was repeated on that model: the correlation only dropped to 0.74, meaning the bias persisted.
-- **Decision**: Document this as a critical, unresolved limitation rather than treating the R² improvement as a full fix.
+- **지시**: 종합 R² 하나로 멈추지 말고, 얼마나 틀렸는지가 아니라 어디서 틀렸는지를 확인한다.
+- **Claude Code의 작업**: held-out test set에서 residual을 계산하고, residual 분포와 예측값과의 관계를 그리고, 오차 최대 10건을 나열하고, residual과 실제 타깃값의 상관관계를 계산.
+- **연구자 검증**: 오차 최대 10건 전부가 타깃 범위의 극단(실제 결합력이 아주 높거나 아주 낮은 경우)에서 발생했고, baseline 모델의 `corr(residual, 실제값)`은 0.77 — 강한 회귀-평균 편향. Ridge(9피처) 모델로 전체 R²를 올린 뒤 같은 점검을 다시 실행: 상관관계는 0.74로만 낮아져서, 편향이 그대로 남아있음을 확인.
+- **결정**: 이 R² 개선을 완전한 해결로 취급하지 않고, 해결되지 않은 중대한 한계로 기록.
 
 ## 8. Researcher Decision Points
 
-These decisions were made by the researcher based on Claude Code's output, not automated by it:
+아래는 Claude Code가 자동으로 정한 게 아니라 연구자가 Claude Code의 결과물을 보고 직접 내린 결정들입니다:
 
-- Which columns constitute target leakage vs. legitimate features
-- How to treat missing and invalid values (drop vs. impute), and at what threshold
-- Which features to include in the interpretable baseline vs. the regularized final model
-- Whether a single-split performance difference was worth acting on (it was re-tested via cross-validation first)
-- Whether the final model's residual bias was acceptable for the stated use case (it was not, for final candidate ranking)
-- How to scope the model's practical use (preliminary filter, not final ranking tool)
+- 어떤 컬럼이 target leakage이고 어떤 컬럼이 정당한 피처인가
+- 결측/무효값을 어떻게 처리할지(삭제 vs 대체), 어느 기준에서
+- 해석 가능한 baseline과 정규화된 최종 모델에 각각 어떤 피처를 넣을지
+- 단일 분할의 성능 차이가 조치할 가치가 있는지(교차검증으로 먼저 재검증)
+- 최종 모델의 residual 편향이 원래 목적에 비춰 받아들일 만한지(최종 후보 선별용으로는 받아들일 수 없다고 판단)
+- 모델의 실전 활용 범위를 어떻게 한정할지(1차 필터, 최종 순위 도구는 아님)
 
 ## 9. Lessons Learned
 
-- A single train/test split is not sufficient evidence to rank models; cross-validation reversed the initial ranking conclusion.
-- Removing correlated features to keep a model interpretable is a valid but not universal choice — regularization (Ridge) let the same information back in without destabilizing coefficients, and materially improved performance (CV R² 0.455 → 0.571).
-- An improved aggregate metric does not guarantee a specific weakness is fixed. The high-affinity underprediction bias was checked explicitly on the final model, not assumed to be resolved.
+- 단일 train/test 분할은 모델 순위를 매길 충분한 근거가 아니다 — 교차검증이 처음 결론을 뒤집었다.
+- 해석 가능성을 위해 상관 높은 피처를 빼는 것은 유효하지만 유일한 선택은 아니다. 정규화(Ridge)를 쓰면 계수를 불안정하게 만들지 않으면서 같은 정보를 되살릴 수 있었고, 실제로 성능을 크게 개선했다(CV R² 0.455 → 0.571).
+- 종합 지표가 개선됐다고 해서 특정 약점이 고쳐졌다는 보장은 없다. 고결합력 과소예측 편향은 최종 모델에서 별도로 다시 확인했고, 해결됐다고 그냥 가정하지 않았다.

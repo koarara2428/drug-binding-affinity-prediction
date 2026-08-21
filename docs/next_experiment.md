@@ -1,29 +1,29 @@
 # Next Experiment
 
-This document lists proposed follow-up analyses based on the limitations identified in this project. **None of the items below have been run.** They are proposals for future work, not completed experiments.
+이 문서는 이번 프로젝트에서 확인된 한계를 바탕으로 제안하는 후속 분석 목록입니다. **아래 항목은 아직 하나도 실행하지 않았습니다.** 이미 완료한 실험이 아니라 향후 작업 제안입니다.
 
-## Hypothesis
+## Hypothesis (가설)
 
-The final model (Ridge, 9 features) systematically underpredicts high-affinity compounds (`corr(residual, actual)` = 0.74 on the held-out test set, barely improved from the 7-feature baseline's 0.77). Two candidate explanations were not yet distinguished:
+최종 모델(Ridge, 9피처)은 고결합력 화합물을 체계적으로 과소예측합니다(held-out test set 기준 `corr(residual, 실제값)` = 0.74 — 7피처 baseline의 0.77에서 거의 개선되지 않음). 아직 구분하지 못한 두 가지 가능한 원인이 있습니다:
 
-1. **Loss function mismatch**: standard squared-error loss optimizes for average accuracy, which favors the dense middle of the target distribution over the sparse high-affinity tail.
-2. **Insufficient feature information**: the available molecular/protein descriptors may not capture what actually drives unusually strong binding, regardless of model choice (RandomForest and XGBoost showed the same underlying bias in earlier checks).
+1. **손실 함수의 목표 불일치**: 일반적인 제곱오차 손실은 평균 정확도를 최적화하는데, 이는 희소한 고결합력 꼬리 구간보다 밀집된 중간 구간에 유리하게 작동합니다.
+2. **피처 정보 부족**: 지금 있는 분자/단백질 서술자들이 애초에 유난히 강한 결합을 유발하는 요인을 담고 있지 않을 수 있습니다 — 모델 종류와 무관하게, RandomForest와 XGBoost에서도 앞서 같은 근본적 편향이 확인됐습니다.
 
-Both may be true simultaneously; the proposed experiments below are designed to tell them apart.
+둘 다 동시에 사실일 수 있으며, 아래 제안 실험들은 이 둘을 구분하기 위해 설계됐습니다.
 
-## Proposed Experiments
+## Proposed Experiments (제안 실험)
 
-- **High-affinity weighted regression** — reweight training samples (e.g., inversely to local target density, or proportionally to `|y - mean|`) so errors on high-affinity compounds cost more during training. Tests explanation (1) directly.
-- **Quantile regression** — train a model to predict an upper quantile (e.g., 90th percentile) of binding affinity instead of the mean, which does not have the same incentive to shrink toward the average.
-- **XGBoost hyperparameter tuning** — the XGBoost model used in this project used untuned, conservative defaults (`max_depth=3, learning_rate=0.05`). A tuned search (e.g., `GridSearchCV`) was not attempted and might close some of the gap, though it is unlikely to fix a bias already observed across three different model families.
-- **Structure-derived features** — descriptors beyond basic molecular/protein properties (e.g., docking scores, 3D interaction features) would test explanation (2): if the bias persists even with richer features, the limitation is more likely in the loss function than the feature set.
-- **External validation** — evaluate the current model (or any improved version) against a dataset not used in this project, ideally one with experimentally measured affinities rather than simulated ones.
+- **고결합력 가중 회귀(High-affinity weighted regression)** — 학습 샘플에 가중치를 줘서(예: 지역 밀도의 역수, 또는 `|y - 평균|`에 비례) 고결합력 화합물의 오차가 학습 중 더 큰 비용을 갖도록 한다. 가설 (1)을 직접 검증한다.
+- **분위수 회귀(Quantile regression)** — 평균이 아니라 상위 분위수(예: 90번째 백분위수)를 예측하도록 학습한다. 이 방식은 평균 쪽으로 수렴하려는 유인 자체가 없다.
+- **XGBoost 하이퍼파라미터 튜닝** — 이번 프로젝트에서 쓴 XGBoost는 튜닝하지 않은 보수적인 기본값(`max_depth=3, learning_rate=0.05`)을 사용했다. `GridSearchCV` 같은 탐색은 시도하지 않았고, 시도한다면 격차를 다소 줄일 수는 있겠지만, 이미 서로 다른 세 모델 계열에서 같은 편향이 관찰됐다는 점에서 이것만으로 편향을 고칠 가능성은 낮다.
+- **구조 기반 피처(Structure-derived features)** — 기본적인 분자/단백질 속성을 넘어서는 서술자(예: 도킹 점수, 3D 상호작용 피처)를 추가하면 가설 (2)를 검증할 수 있다: 더 풍부한 피처를 넣어도 편향이 남는다면, 한계는 피처 세트보다 손실 함수 쪽에 있을 가능성이 크다.
+- **외부 검증(External validation)** — 현재 모델(또는 개선된 버전)을 이 프로젝트에서 쓰지 않은 데이터셋으로, 가능하면 시뮬레이션이 아니라 실험으로 측정한 결합력 데이터셋으로 평가한다.
 
-## Evaluation Metrics
+## Evaluation Metrics (평가 지표)
 
-Beyond the metrics already used in this project (R², MAE, RMSE), the following would specifically target the high-affinity underprediction issue:
+이번 프로젝트에서 이미 쓴 지표(R², MAE, RMSE) 외에, 고결합력 과소예측 문제를 직접 겨냥한 지표는 다음과 같습니다:
 
-- **Spearman rank correlation** — measures whether relative ranking is preserved even if absolute values are biased, which matters more than raw R² for a prioritization use case.
-- **Top-K recall / precision** — for a fixed shortlist size K, what fraction of the true top-K highest-affinity compounds does the model's top-K predicted list actually contain? This is arguably the most direct metric for a screening tool, since the practical question is "does it find the good candidates," not "is its average error small."
+- **Spearman 순위 상관계수** — 절댓값이 편향돼 있어도 상대적인 순위가 보존되는지를 측정합니다. 우선순위화가 목적이라면 단순 R²보다 이게 더 중요합니다.
+- **Top-K recall / precision** — 후보 목록 크기 K를 고정했을 때, 모델이 예측한 상위 K개 목록이 실제 결합력 상위 K개 화합물을 얼마나 포함하는가? 스크리닝 도구에 가장 직접적인 지표일 수 있습니다 — 실전에서 중요한 질문은 "평균 오차가 작은가"가 아니라 "정말 좋은 후보를 찾아내는가"이기 때문입니다.
 
-Regression accuracy alone (R²/MAE/RMSE) does not answer whether a screening model retrieves the compounds that matter most — that requires ranking-focused metrics like the two above.
+회귀 정확도(R²/MAE/RMSE)만으로는 스크리닝 모델이 정작 중요한 화합물을 찾아내는지 답할 수 없습니다 — 그러려면 위 두 가지 같은 순위 중심 지표가 필요합니다.

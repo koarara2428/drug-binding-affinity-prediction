@@ -2,39 +2,39 @@
 
 ## Dataset
 
-2,000 compound-protein pairs, 17 columns (raw). After quality filtering: 1,825 rows, 15 columns.
+화합물-단백질 조합 2,000건, 17컬럼(원본). 품질 검토 후: 1,825행, 15컬럼.
 
 ## Target
 
-`binding_affinity` (continuous)
+`binding_affinity` (연속형)
 
 ## Best Model
 
-Ridge Regression, 9 features, `StandardScaler` + `alpha=1.0`
+Ridge 회귀, 9피처, `StandardScaler` + `alpha=1.0`
 
 ## Performance
 
-| Metric | Value |
+| 지표 | 값 |
 |---|---|
 | CV R² (5-fold, mean ± std) | 0.5714 ± 0.0681 |
-| Test R² (single 8:2 split) | 0.5533 |
+| Test R² (단일 8:2 분할) | 0.5533 |
 | Test MAE | 0.3700 |
 | Test RMSE | 0.8759 |
 
-Baseline for comparison — Linear Regression, 7 features: CV R² = 0.4552 ± 0.0577.
+비교 기준(baseline) — Linear Regression, 7피처: CV R² = 0.4552 ± 0.0577.
 
 ## Key Finding
 
-`logp` and its interaction with `protein_pi` are the only features with a meaningful individual correlation to `binding_affinity`. Reintroducing two features (`logp_pi_interaction`, `mw_ratio`) that were initially excluded for multicollinearity — using Ridge regularization instead of manual exclusion — raised cross-validated R² from 0.455 to 0.571, a statistically meaningful improvement (gap larger than either model's fold-to-fold standard deviation).
+`logp`와 `protein_pi`의 상호작용만이 `binding_affinity`와 개별적으로 의미 있는 상관관계를 보인 피처였습니다. 다중공선성 때문에 처음에 제외했던 두 피처(`logp_pi_interaction`, `mw_ratio`)를 수동 제외 대신 Ridge 정규화로 다시 포함시키자 교차검증 R²가 0.455에서 0.571로 상승했고, 이는 통계적으로 유의미한 개선이었습니다(차이가 두 모델의 fold 간 표준편차보다 큼).
 
 ## Model Limitation
 
-Both the baseline and final models systematically underpredict high-affinity compounds. On the held-out test set, `corr(residual, actual value)` was 0.77 for the baseline and 0.74 for the final model — the overall R² improvement did not resolve this bias. In the final model, the top 10% of compounds by actual affinity were underpredicted by an average of +0.96 (residual), while the middle 80% showed near-zero bias (+0.01).
+baseline과 최종 모델 모두 고결합력 화합물을 체계적으로 과소예측합니다. held-out test set 기준 `corr(residual, 실제값)`은 baseline이 0.77, 최종 모델이 0.74였습니다 — 전체 R² 개선이 이 편향을 해소하지 못했습니다. 최종 모델에서 실제 결합력 상위 10% 화합물은 평균 +0.96(residual)만큼 과소예측됐고, 중간 80% 구간은 편향이 거의 없었습니다(+0.01).
 
 ## Practical Interpretation
 
-The model is better positioned as a **preliminary filtering tool** — for deprioritizing candidates it confidently predicts as weak binders — rather than a **final candidate-ranking model**. Because it specifically struggles on the highest-affinity compounds, using its predicted ranking to select a final shortlist risks excluding genuinely strong candidates.
+이 모델은 **최종 후보 순위화 모델**보다는 **1차 필터링 도구**에 더 적합합니다 — 모델이 약한 결합체일 것으로 확신하는 후보를 우선순위에서 제외하는 용도입니다. 결합력이 가장 높은 화합물에서 특히 부정확하기 때문에, 예측 순위를 기준으로 최종 후보를 선택하면 실제로 강력한 후보를 놓칠 위험이 있습니다.
 
 ## Next Experiment
 
-See [`docs/next_experiment.md`](../../../docs/next_experiment.md) for proposed follow-ups: high-affinity weighted regression, quantile regression, XGBoost tuning, structure-derived features, and external validation.
+제안하는 후속 작업(고결합력 가중 회귀, 분위수 회귀, XGBoost 튜닝, 구조 기반 피처, 외부 검증)은 [`docs/next_experiment.md`](../../../docs/next_experiment.md)를 참고하세요.

@@ -1,28 +1,28 @@
 # Biological Context
 
-This project is a computational data-analysis exercise. It does not include any wet-lab work — no compounds were synthesized or tested, and no biophysical assays were run. This document explains where a model like this one fits in a real drug discovery workflow, and is explicit about what this project does and does not demonstrate.
+이 프로젝트는 계산 데이터 분석 실습입니다. 실제 실험(wet-lab)은 포함하지 않습니다 — 화합물을 합성하거나 테스트하지 않았고, 생물물리학적 분석(assay)도 수행하지 않았습니다. 이 문서는 이런 모델이 실제 신약 개발 워크플로우 어디에 위치하는지 설명하며, 이 프로젝트가 무엇을 보여주고 무엇을 보여주지 않는지를 명확히 합니다.
 
-## Why Binding Affinity Prediction Matters
+## 결합 친화도 예측이 왜 중요한가
 
-Binding affinity (how strongly a compound binds a target protein) is one of the earliest filters in drug discovery. Before a compound reaches synthesis or wet-lab testing, computational estimates of binding affinity are used to narrow a large candidate pool down to a smaller set worth the time and cost of experimental follow-up. A useful computational model does not need to be perfectly accurate — it needs to reliably separate likely-poor candidates from those worth testing further.
+결합 친화도(화합물이 표적 단백질에 얼마나 강하게 결합하는지)는 신약 개발에서 가장 초기 단계의 필터 중 하나입니다. 화합물이 합성되거나 실험되기 전에, 결합 친화도에 대한 계산적 추정치를 이용해 방대한 후보 풀을 실험할 만한 시간과 비용을 들일 가치가 있는 더 작은 집합으로 좁힙니다. 유용한 계산 모델이 완벽하게 정확할 필요는 없습니다 — 가망 없어 보이는 후보와 추가로 테스트해볼 가치가 있는 후보를 안정적으로 구분해내기만 하면 됩니다.
 
-## Computational Screening vs Experimental Validation
+## 계산 스크리닝 vs 실험적 검증
 
 ```text
-Computational screening
+계산 스크리닝(Computational screening)
         ↓
-Candidate prioritization
+후보 우선순위화(Candidate prioritization)
         ↓
-Experimental screening
+실험 스크리닝(Experimental screening)
         ↓
-Biophysical validation
+생물물리학적 검증(Biophysical validation)
 ```
 
-Computational prediction is a prioritization step, not a replacement for experimental validation. In practice, a model like the one in this repository would be used to reduce a large candidate list to a shorter one, which is then still subject to actual experimental screening and biophysical confirmation. It does not, and should not, replace those downstream steps.
+계산적 예측은 우선순위를 매기는 단계이지, 실험적 검증을 대체하는 게 아닙니다. 실제로 이 저장소에 있는 것과 같은 모델은 방대한 후보 목록을 더 짧은 목록으로 줄이는 데 쓰이고, 그 목록은 여전히 실제 실험 스크리닝과 생물물리학적 확인 과정을 거칩니다. 이 모델이 그 다음 단계들을 대체하지 않으며, 대체해서도 안 됩니다.
 
-## What This Project Does and Does Not Show
+## 이 프로젝트가 보여주는 것과 보여주지 않는 것
 
-- **Does show**: end-to-end handling of a compound-protein binding dataset — data quality checks, target-leakage detection, feature selection under multicollinearity, model comparison with proper validation, and an honest assessment of where the model fails.
-- **Does not show**: performance on real experimental affinity measurements, validation against any wet-lab assay, or evidence that the underlying molecular descriptors used here are sufficient for production-grade candidate ranking. The dataset is a virtual-screening / simulated dataset (see the main [README](../README.md) for the source), not a set of experimentally measured affinities.
+- **보여주는 것**: 화합물-단백질 결합 데이터셋을 처음부터 끝까지 다루는 과정 — 데이터 품질 검토, target leakage 탐지, 다중공선성 아래에서의 피처 선정, 제대로 된 검증을 동반한 모델 비교, 그리고 모델이 어디서 실패하는지에 대한 솔직한 평가.
+- **보여주지 않는 것**: 실제 실험으로 측정한 결합력 데이터에 대한 성능, 어떤 wet-lab assay 대비 검증, 여기서 쓴 분자 서술자(descriptor)들이 실제 생산 수준의 후보 순위화에 충분하다는 근거. 이 데이터셋은 가상 스크리닝(virtual screening) / 시뮬레이션 데이터셋이며(출처는 메인 [README](../README.md) 참고), 실험으로 측정한 결합력 집합이 아닙니다.
 
-Given the residual analysis findings documented in the main README (systematic underprediction of high-affinity compounds), the model in this repository is better positioned as a preliminary filtering tool — useful for deprioritizing candidates the model is confident are weak binders — rather than a final candidate-ranking model. Any real-world use would require validation against experimental data before being trusted for ranking decisions.
+메인 README에 기록된 residual 분석 결과(고결합력 화합물의 체계적 과소예측)를 감안하면, 이 저장소의 모델은 최종 후보 순위화 모델보다는 **1차 필터링 도구**로 자리매김하는 게 더 적절합니다 — 모델이 약한 결합체일 것으로 확신하는 후보를 우선순위에서 제외하는 데 유용합니다. 실제로 활용하려면 순위화 판단에 신뢰를 두기 전에 반드시 실험 데이터로 검증하는 과정이 필요합니다.

@@ -4,20 +4,20 @@
 목표: `binding_affinity`(결합 친화도)를 `molecular_weight`, `logp`, `protein_pi` 등으로 예측하는 회귀분석. 성공 기준은 "실험 전 컴퓨터 스크리닝 목적의 초보 연구원에게 쓸모 있는 수준".
 진행 절차: `docs/reference/SOP.md`의 STAGE ①~⑤ 순서를 따른다.
 
-## Research Decision Log
+## Research Decision Log (연구 의사결정 로그)
 
-This table is the researcher-facing summary of this document: not "what code was written," but **what evidence was reviewed and what decision followed from it**. The detailed, chronological log (in Korean) below preserves the full session record.
+이 표는 이 문서를 연구자 관점에서 요약한 것입니다: "어떤 코드를 작성했는가"가 아니라 **어떤 근거를 검토했고 그 결과 어떤 결정을 내렸는가**입니다. 아래의 상세한 시간순 로그(한글)는 전체 세션 기록을 그대로 보존합니다.
 
-| Step | Question | Analysis | Finding | Decision |
+| 단계 | 질문 | 분석 | 발견 | 결정 |
 |---|---|---|---|---|
-| Data leakage detection | Does any column encode the target? | Compared `active` against `binding_affinity` by threshold | `active` is an exact binarization at 7.0 (active=0 max 6.996 / active=1 min 7.002) | Excluded `active` from all modeling |
-| Missing / invalid value handling | Are there missing or physically impossible values? | Per-column missing ratio, raw-string re-read for disguised missing tokens, range check on `polar_surface_area` | 174 rows (8.7%) had missing `logp`/`polar_surface_area`/`hydrophobicity`; one `polar_surface_area` value was negative (-24.65), which is physically impossible | Dropped affected rows (2,000 → 1,825); no disguised-missing or dtype issues found elsewhere |
-| Feature selection | Which features are usable without inflating multicollinearity? | Correlation matrix; flagged pairs with \|r\| ≥ 0.8 | `logp`↔`logp_pi_interaction` (0.81), `protein_length`↔`mw_ratio` (-0.82) | Baseline model kept only one feature per correlated pair (7 features total) |
-| Model comparison | Do more flexible models outperform the linear baseline? | Single 8:2 split: Linear Regression vs RandomForest vs XGBoost | RandomForest/XGBoost appeared better on the single split | Treated as provisional pending cross-validation |
-| Cross-validation | Is the single-split ranking real? | 5-fold CV, R² mean ± std per model, gap-vs-std decision rule | All three models statistically indistinguishable (gaps smaller than std) | Did not select a model on single-split performance alone |
-| Ridge feature reintroduction | Can the excluded correlated features be used safely? | Ridge (StandardScaler) with the excluded features reintroduced (9 features), re-validated via CV | CV R² rose from 0.4552±0.0577 (7-feature) to 0.5714±0.0681 (9-feature) — gap exceeds both models' std | Selected Ridge (9 features) as the final model |
-| Residual analysis | Is the improved R² evenly distributed across the target range? | Residual vs actual value, correlation and per-decile means, on both the baseline and final model | `corr(residual, actual)` = 0.77 (baseline) → 0.74 (final) — high-affinity compounds still underpredicted (+0.96 mean residual in top decile) | Documented as an unresolved, model-independent limitation |
-| Practical usage limitation | Is this model suitable for final candidate ranking? | Reviewed residual bias against the stated screening use case | The bias falls exactly where ranking-based candidate selection would need accuracy | Scoped the model as a preliminary filter, not a final ranking tool |
+| 데이터 누수 탐지 | 어떤 컬럼이 타깃 정보를 담고 있는가? | `active`를 `binding_affinity`와 임곗값 기준으로 비교 | `active`는 7.0에서 정확히 이진화된 값(active=0 최댓값 6.996 / active=1 최솟값 7.002) | 모든 모델링에서 `active` 제외 |
+| 결측/무효값 처리 | 결측치나 물리적으로 불가능한 값이 있는가? | 컬럼별 결측 비율, 위장 결측 문자열 확인을 위한 원본 재확인, `polar_surface_area` 범위 점검 | 174행(8.7%)에 `logp`/`polar_surface_area`/`hydrophobicity` 결측 존재. `polar_surface_area` 값 1건이 음수(-24.65)로 물리적으로 불가능 | 해당 행 삭제(2,000 → 1,825행). 그 외 위장 결측·타입 문제는 없음 |
+| 피처 선정 | 다중공선성을 키우지 않으면서 쓸 수 있는 피처는 무엇인가? | 상관행렬, \|r\| ≥ 0.8인 쌍 표시 | `logp`↔`logp_pi_interaction`(0.81), `protein_length`↔`mw_ratio`(-0.82) | baseline 모델은 상관 쌍마다 하나씩만 채택(총 7피처) |
+| 모델 비교 | 더 유연한 모델이 선형 baseline보다 나은가? | 단일 8:2 분할: Linear Regression vs RandomForest vs XGBoost | 단일 분할에서는 RandomForest/XGBoost가 나아 보임 | 교차검증 전까지 잠정 결과로 취급 |
+| 교차검증 | 단일 분할 순위가 실제로 유효한가? | 5-fold CV, 모델별 R² mean ± std, 차이-vs-표준편차 판정 규칙 | 세 모델 모두 통계적으로 구분 안 됨(차이가 표준편차보다 작음) | 단일 분할 성능만으로는 모델을 선정하지 않음 |
+| Ridge 피처 재포함 | 제외했던 상관 피처를 안전하게 다시 쓸 수 있는가? | Ridge(StandardScaler)에 제외했던 피처를 다시 포함(9피처), 교차검증으로 재검증 | CV R²가 0.4552±0.0577(7피처)에서 0.5714±0.0681(9피처)로 상승 — 차이가 두 모델의 표준편차보다 큼 | Ridge(9피처)를 최종 모델로 선정 |
+| Residual 분석 | 개선된 R²가 타깃 범위 전체에 고르게 분포하는가? | baseline과 최종 모델 모두에서 residual vs 실제값, 상관관계 및 구간별 평균 | `corr(residual, 실제값)` = 0.77(baseline) → 0.74(최종) — 고결합력 화합물은 여전히 과소예측(상위 10% 구간 평균 residual +0.96) | 모델 종류와 무관한, 미해결 한계로 기록 |
+| 실전 활용 범위 | 이 모델이 최종 후보 순위화에 적합한가? | residual 편향을 원래 스크리닝 용도에 비춰 검토 | 편향이 발생하는 지점이 정확히 순위 기반 후보 선정에 정확도가 필요한 구간과 일치 | 최종 순위 도구가 아닌 1차 필터로 활용 범위 한정 |
 
 ## 현재 상태
 
@@ -188,6 +188,9 @@ Residual analysis 결과(고결합력 극단값 과소예측)가 실무적으로
 - `CLAUDE.md`, `output/day6/final/INDEX.md`의 구조/앵커 참조를 새 README와 일치하도록 갱신
 - 검증: 전체 파일에서 핵심 수치(0.5714, 0.4552 등)와 라이브러리명 grep으로 교차 확인, 불일치·가상 라이브러리 없음 확인
 사용 키워드: 없음(문서 작성·검증만)
+
+### 24. 포트폴리오 문서를 영문 → 한글로 재번역
+23번에서 영문으로 작성한 `README.md`, `docs/CLAUDE_WORKFLOW.md`, `docs/biological_context.md`, `docs/next_experiment.md`, `output/day6/final/FINAL_RESULTS.md`, `docs/WORKFLOW.md`의 Research Decision Log를 사용자 요청으로 한글로 재작성. 구조·수치·링크는 그대로 유지하고 언어만 번역. TOC 앵커를 한글 제목에 맞게 재조정("Project Snapshot"→"프로젝트 요약" 포함). `output/day6/final/INDEX.md`의 "관련 README" 참조도 한글 섹션명으로 갱신. 핵심 수치(0.5714, 0.4552 등) grep으로 전체 파일 교차 확인.
 
 ## 현재 상태 (최종)
 
